@@ -1,0 +1,22 @@
+<div class="card bg-secondary-subtle border-0 shadow-sm">
+  <div class="card-body">
+    <h6 class="card-title mb-3">Match history</h6>
+    <div *ngIf="matches.length === 0" class="small text-muted">No completed matches yet.</div>
+    <div *ngFor="let m of matches" class="mb-2">
+      <a [routerLink]="['/match', m._id]" class="text-decoration-none">
+        <div class="d-flex justify-content-between align-items-center p-2 rounded bg-dark text-light">
+          <div>
+            <div class="small text-secondary">{{ m.format }}</div>
+            <div class="fw-semibold">
+              {{ m.teamA.name }} vs {{ m.teamB.name }}
+            </div>
+          </div>
+          <div class="small text-secondary">
+            {{ m.updatedAt | date : 'short' }}
+          </div>
+        </div>
+      </a>
+    </div>
+  </div>
+</div>
+

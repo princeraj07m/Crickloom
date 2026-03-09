@@ -1,0 +1,23 @@
+<div *ngIf="!tournament" class="text-muted">Loading tournament...</div>
+<div *ngIf="tournament">
+  <h3 class="mb-3">{{ tournament.name }}</h3>
+
+  <div class="row g-3">
+    <div class="col-12 col-md-6" *ngFor="let m of matches">
+      <a [routerLink]="['/match', m._id]" class="text-decoration-none">
+        <div class="card bg-secondary-subtle border-0 shadow-sm">
+          <div class="card-body">
+            <div class="small text-secondary">{{ m.format }}</div>
+            <div class="fw-semibold mb-1">
+              {{ m.teamA.name }} vs {{ m.teamB.name }}
+            </div>
+            <div class="small text-secondary">{{ m.title }}</div>
+            <span *ngIf="!m.isCompleted" class="badge bg-success mt-2">Live</span>
+            <span *ngIf="m.isCompleted" class="badge bg-secondary mt-2">Completed</span>
+          </div>
+        </div>
+      </a>
+    </div>
+  </div>
+</div>
+

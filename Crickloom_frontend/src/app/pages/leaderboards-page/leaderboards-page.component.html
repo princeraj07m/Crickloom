@@ -1,0 +1,47 @@
+<div class="mb-3">
+  <div class="btn-group btn-group-sm" role="group">
+    <button class="btn btn-outline-light" [class.active]="format() === 'T20'" (click)="setFormat('T20')">T20</button>
+    <button class="btn btn-outline-light" [class.active]="format() === 'ODI'" (click)="setFormat('ODI')">ODI</button>
+    <button class="btn btn-outline-light" [class.active]="format() === 'TEST'" (click)="setFormat('TEST')">
+      Test
+    </button>
+  </div>
+</div>
+
+<div *ngIf="!data" class="text-muted">Loading leaderboards...</div>
+
+<div *ngIf="data" class="row g-3">
+  <div class="col-12 col-lg-4">
+    <div class="card bg-secondary-subtle border-0 shadow-sm h-100">
+      <div class="card-body">
+        <h6 class="card-title mb-3">Most Runs</h6>
+        <div *ngFor="let r of data.battingMostRuns" class="small mb-1">
+          <span class="fw-semibold">{{ r.player.name }}</span> - {{ r.runs }} runs
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-4">
+    <div class="card bg-secondary-subtle border-0 shadow-sm h-100">
+      <div class="card-body">
+        <h6 class="card-title mb-3">Most Wickets</h6>
+        <div *ngFor="let r of data.bowlingMostWickets" class="small mb-1">
+          <span class="fw-semibold">{{ r.player.name }}</span> - {{ r.wickets }} wkts
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-4">
+    <div class="card bg-secondary-subtle border-0 shadow-sm h-100">
+      <div class="card-body">
+        <h6 class="card-title mb-3">Most Catches</h6>
+        <div *ngFor="let r of data.fieldingMostCatches" class="small mb-1">
+          <span class="fw-semibold">{{ r.player.name }}</span> - {{ r.catches }} catches
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

@@ -1,0 +1,59 @@
+<div class="row g-3">
+  <div class="col-12 col-lg-4">
+    <div class="card bg-dark border-0 shadow-sm h-100">
+      <div class="card-body">
+        <h5 class="card-title mb-3 text-uppercase small text-secondary">Tournament</h5>
+        <div *ngFor="let t of tournaments" class="mb-3">
+          <a [routerLink]="['/tournament', t._id]" class="text-decoration-none text-light">
+            <div class="d-flex flex-column">
+              <span class="fw-semibold fs-5">{{ t.name }}</span>
+              <span class="badge bg-success mt-2" *ngIf="matches.length">Live now</span>
+            </div>
+          </a>
+        </div>
+        <p *ngIf="tournaments.length === 0" class="text-muted mb-0">No tournaments yet.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-8">
+    <div class="card bg-dark border-0 shadow-sm h-100">
+      <div class="card-body">
+        <h5 class="card-title mb-3 text-uppercase small text-secondary">Matches</h5>
+        <div *ngIf="loading" class="text-muted">Loading matches...</div>
+        <div *ngIf="!loading && matches.length === 0" class="text-muted">No matches scheduled.</div>
+        <div class="row g-3">
+          <div class="col-12 col-md-6" *ngFor="let m of matches">
+            <a [routerLink]="['/match', m._id]" class="text-decoration-none text-light">
+              <div class="card bg-black border border-secondary h-100">
+                <div class="card-body">
+                  <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="badge bg-info text-dark">{{ m.format }} MATCH</span>
+                    <span class="badge" [ngClass]="m.isCompleted ? 'bg-secondary' : 'bg-success'">
+                      {{ m.isCompleted ? 'Completed' : 'Live' }}
+                    </span>
+                  </div>
+                  <div class="fw-semibold mb-1">
+                    {{ m.teamA.name }} vs {{ m.teamB.name }}
+                  </div>
+                  <div class="small text-secondary mb-1">{{ m.title }}</div>
+                  <div class="small text-secondary">
+                    Overs:
+                    <ng-container *ngIf="m.oversLimit; else unlimited">
+                      {{ m.oversLimit }}
+                    </ng-container>
+                    <ng-template #unlimited>Unlimited</ng-template>
+                  </div>
+                  <button class="btn btn-sm btn-outline-light mt-2" type="button">
+                    View match
+                  </button>
+                </div>
+              </div>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

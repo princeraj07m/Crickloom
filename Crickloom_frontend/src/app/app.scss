@@ -1,0 +1,24 @@
+a {
+  color: #007bff; /* Bootstrap primary blue */
+  text-decoration: none;
+
+  &:hover {
+    color: #0056b3;
+    text-decoration: underline;
+  }
+}
+
+.btn-primary {
+  background-color: #007bff;
+  border-color: #007bff;
+
+  &:hover {
+    background-color: #0056b3;
+    border-color: #0056b3;
+  }
+}
+
+.card {
+  background-color: #212529; /* Darker background for cards */
+  border-color: #343a40;
+}

@@ -1,0 +1,383 @@
+<div *ngIf="!matchSummary" class="text-muted">Loading match...</div>
+
+<div *ngIf="matchSummary">
+  <div class="card bg-secondary-subtle border-0 shadow-sm mb-3">
+    <div class="card-body">
+      <div class="d-flex justify-content-between flex-wrap gap-2">
+        <div>
+          <div class="small text-secondary">{{ matchSummary.match.format }}</div>
+          <div class="fw-semibold">
+            {{ matchSummary.match.teamA.name }} vs {{ matchSummary.match.teamB.name }}
+          </div>
+          <div class="small text-secondary">{{ matchSummary.match.title }}</div>
+        </div>
+        <div class="text-end">
+          <div class="fw-bold">
+            {{ matchSummary.match.innings[matchSummary.match.currentInningsIndex].battingTeam.name }}
+          </div>
+          <div>
+            {{
+              matchSummary.match.innings[matchSummary.match.currentInningsIndex].runs
+            }}
+            /
+            {{
+              matchSummary.match.innings[matchSummary.match.currentInningsIndex].wickets
+            }}
+            ({{ matchSummary.match.innings[matchSummary.match.currentInningsIndex].overs }}.{{
+              matchSummary.match.innings[matchSummary.match.currentInningsIndex].ballsInOver
+            }})
+          </div>
+          <div class="small text-secondary">
+            CRR: {{ matchSummary.currentRunRate }} ·
+            <span *ngIf="matchSummary.requiredRunRate !== null">
+              RRR: {{ matchSummary.requiredRunRate }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+      <button class="nav-link" [class.active]="activeTab() === 'live'" (click)="setTab('live')">Live</button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link" [class.active]="activeTab() === 'scorecard'" (click)="setTab('scorecard')">
+        Scorecard
+      </button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link" [class.active]="activeTab() === 'overs'" (click)="setTab('overs')">
+        Over Summary
+      </button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link" [class.active]="activeTab() === 'stats'" (click)="setTab('stats')">
+        Stats
+      </button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link" [class.active]="activeTab() === 'highlights'" (click)="setTab('highlights')">
+        Highlights
+      </button>
+    </li>
+  </ul>
+
+  <div [ngSwitch]="activeTab()">
+    <div *ngSwitchCase="'live'">
+      <div class="row g-3">
+        <div class="col-12 col-lg-7">
+          <div class="card bg-secondary-subtle border-0 shadow-sm h-100">
+            <div class="card-body">
+              <h6 class="card-title mb-3">Ball-by-ball</h6>
+              <div class="small text-muted" *ngIf="balls.length === 0">No balls yet.</div>
+              <div class="list-group small" style="max-height: 320px; overflow-y: auto">
+                <div *ngFor="let b of balls; let i = index" class="list-group-item bg-dark text-light border-0 mb-1">
+                  <div class="d-flex justify-content-between">
+                    <div>Ball {{ i + 1 }}</div>
+                    <div>Runs: {{ b.runs }} | {{ b.ballType }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-lg-5">
+          <div class="card bg-secondary-subtle border-0 shadow-sm h-100">
+            <div class="card-body">
+              <h6 class="card-title mb-3">Scoring (password protected)</h6>
+
+              <div *ngIf="!auth.isScorer">
+                <label class="form-label small">Enter scorer password</label>
+                <input
+                  type="password"
+                  class="form-control form-control-sm mb-2"
+                  [(ngModel)]="loginPassword"
+                  (keyup.enter)="tryLogin()"
+                />
+                <button class="btn btn-sm btn-success" (click)="tryLogin()" [disabled]="loggingIn">
+                  Unlock scoring
+                </button>
+                <div *ngIf="loginError" class="text-danger small mt-2">{{ loginError }}</div>
+              </div>
+
+              <form *ngIf="auth.isScorer" (ngSubmit)="submitBall()" class="small">
+                <div class="mb-2">
+                  <label class="form-label">Striker</label>
+                  <select
+                    class="form-select form-select-sm"
+                    [(ngModel)]="ballInput.strikerId"
+                    name="strikerId"
+                  >
+                    <option [ngValue]="''">Select</option>
+                    <option *ngFor="let p of matchPlayers" [ngValue]="p._id">
+                      {{ p.name }}
+                    </option>
+                  </select>
+                </div>
+
+                <div class="mb-2">
+                  <label class="form-label">Non-striker</label>
+                  <select
+                    class="form-select form-select-sm"
+                    [(ngModel)]="ballInput.nonStrikerId"
+                    name="nonStrikerId"
+                  >
+                    <option [ngValue]="''">Select</option>
+                    <option *ngFor="let p of matchPlayers" [ngValue]="p._id">
+                      {{ p.name }}
+                    </option>
+                  </select>
+                </div>
+
+                <div class="mb-2">
+                  <label class="form-label">Bowler</label>
+                  <select
+                    class="form-select form-select-sm"
+                    [(ngModel)]="ballInput.bowlerId"
+                    name="bowlerId"
+                  >
+                    <option [ngValue]="''">Select</option>
+                    <option *ngFor="let p of matchPlayers" [ngValue]="p._id">
+                      {{ p.name }}
+                    </option>
+                  </select>
+                </div>
+                <div class="mb-2">
+                  <label class="form-label">Runs</label>
+                  <select class="form-select form-select-sm" [(ngModel)]="ballInput.runs" name="runs">
+                    <option [ngValue]="0">0</option>
+                    <option [ngValue]="1">1</option>
+                    <option [ngValue]="2">2</option>
+                    <option [ngValue]="3">3</option>
+                    <option [ngValue]="4">4</option>
+                    <option [ngValue]="6">6</option>
+                  </select>
+                </div>
+
+                <div class="mb-2">
+                  <label class="form-label">Ball type</label>
+                  <select class="form-select form-select-sm" [(ngModel)]="ballInput.ballType" name="ballType">
+                    <option value="LEGAL">Legal</option>
+                    <option value="WIDE">Wide</option>
+                    <option value="NO_BALL">No Ball</option>
+                    <option value="BYE">Bye</option>
+                    <option value="LEG_BYE">Leg Bye</option>
+                  </select>
+                </div>
+
+                <div class="mb-2">
+                  <label class="form-label">Wicket</label>
+                  <select class="form-select form-select-sm" [(ngModel)]="ballInput.wicketType" name="wicketType">
+                    <option value="">None</option>
+                    <option value="Bowled">Bowled</option>
+                    <option value="Caught">Caught</option>
+                    <option value="LBW">LBW</option>
+                    <option value="Run Out">Run Out</option>
+                    <option value="Stumped">Stumped</option>
+                    <option value="Hit Wicket">Hit Wicket</option>
+                  </select>
+                </div>
+
+                <div class="mb-2" *ngIf="ballInput.wicketType">
+                  <label class="form-label">Player out</label>
+                  <select
+                    class="form-select form-select-sm"
+                    [(ngModel)]="ballInput.playerOutId"
+                    name="playerOutId"
+                  >
+                    <option [ngValue]="''">Select</option>
+                    <option *ngFor="let p of matchPlayers" [ngValue]="p._id">
+                      {{ p.name }}
+                    </option>
+                  </select>
+                </div>
+
+                <div class="d-flex gap-2 mt-3">
+                  <button class="btn btn-sm btn-success" type="submit">
+                    Submit ball
+                  </button>
+                  <button class="btn btn-sm btn-outline-warning" type="button" (click)="undoLastBall()">
+                    Undo ball
+                  </button>
+                  <button class="btn btn-sm btn-outline-danger ms-auto" type="button" (click)="endCurrentInnings()">
+                    End innings
+                  </button>
+                </div>
+
+                <div *ngIf="actionMessage" class="text-success small mt-2">
+                  {{ actionMessage }}
+                </div>
+                <div *ngIf="actionError" class="text-danger small mt-1">
+                  {{ actionError }}
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div *ngSwitchCase="'scorecard'">
+      <div class="card bg-secondary-subtle border-0 shadow-sm" id="scorecard-container">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="card-title mb-0">Scorecard</h6>
+            <button class="btn btn-sm btn-outline-light" type="button" (click)="shareScorecard()">
+              Share scorecard
+            </button>
+          </div>
+
+          <div class="mb-3" *ngFor="let idx of [0,1]">
+            <div class="fw-semibold mb-1">
+              Innings {{ idx + 1 }} -
+              {{ matchSummary.match.innings[idx]?.battingTeam?.name || 'TBD' }}
+            </div>
+
+            <div class="table-responsive mb-2">
+              <table class="table table-sm table-dark table-striped align-middle mb-1">
+                <thead>
+                  <tr>
+                    <th>Batsman</th>
+                    <th class="text-end">R</th>
+                    <th class="text-end">B</th>
+                    <th class="text-end">4s</th>
+                    <th class="text-end">6s</th>
+                    <th class="text-end">SR</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let b of getInningsBatting(idx)">
+                    <td>{{ b.name }}</td>
+                    <td class="text-end">{{ b.runs }}</td>
+                    <td class="text-end">{{ b.balls }}</td>
+                    <td class="text-end">{{ b.fours }}</td>
+                    <td class="text-end">{{ b.sixes }}</td>
+                    <td class="text-end">
+                      {{
+                        b.balls
+                          ? (b.runs / b.balls * 100 | number : '1.0-2')
+                          : '0.00'
+                      }}
+                    </td>
+                  </tr>
+                  <tr *ngIf="getInningsBatting(idx).length === 0">
+                    <td colspan="6" class="text-muted small">No batting data yet.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="table-responsive mb-3">
+              <table class="table table-sm table-dark table-striped align-middle mb-1">
+                <thead>
+                  <tr>
+                    <th>Bowler</th>
+                    <th class="text-end">O</th>
+                    <th class="text-end">R</th>
+                    <th class="text-end">W</th>
+                    <th class="text-end">Econ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let b of getInningsBowling(idx)">
+                    <td>{{ b.name }}</td>
+                    <td class="text-end">{{ b.overs | number : '1.1-1' }}</td>
+                    <td class="text-end">{{ b.runs }}</td>
+                    <td class="text-end">{{ b.wickets }}</td>
+                    <td class="text-end">
+                      {{
+                        b.balls
+                          ? (b.runs / (b.balls / 6) | number : '1.1-2')
+                          : '0.00'
+                      }}
+                    </td>
+                  </tr>
+                  <tr *ngIf="getInningsBowling(idx).length === 0">
+                    <td colspan="5" class="text-muted small">No bowling data yet.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div *ngSwitchCase="'overs'">
+      <div class="card bg-secondary-subtle border-0 shadow-sm">
+        <div class="card-body">
+          <h6 class="card-title mb-3">Over summary</h6>
+          <div *ngFor="let idx of [0,1]" class="mb-3">
+            <div class="fw-semibold mb-1">
+              Innings {{ idx + 1 }}
+            </div>
+            <div class="table-responsive">
+              <table class="table table-sm table-dark table-striped align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th>Over</th>
+                    <th>Sequence</th>
+                    <th class="text-end">Runs</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let o of getOverSummary(idx)">
+                    <td>{{ o.over }}</td>
+                    <td>
+                      <span *ngFor="let b of o.balls; let last = last">
+                        {{ b.runs + (b.extras || 0) }}{{ b.ballType !== 'LEGAL' ? '(' + b.ballType + ')' : '' }}<span *ngIf="!last">, </span>
+                      </span>
+                    </td>
+                    <td class="text-end">{{ o.runs }}</td>
+                  </tr>
+                  <tr *ngIf="getOverSummary(idx).length === 0">
+                    <td colspan="3" class="text-muted small">No overs yet.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div *ngSwitchCase="'stats'">
+      <div class="card bg-secondary-subtle border-0 shadow-sm">
+        <div class="card-body">
+          <h6 class="card-title mb-3">Match stats</h6>
+          <p class="small text-muted mb-0">
+            Use aggregated `PlayerStats` from backend to display batting, bowling, and fielding statistics.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div *ngSwitchCase="'highlights'">
+      <div class="card bg-secondary-subtle border-0 shadow-sm">
+        <div class="card-body">
+          <h6 class="card-title mb-3">Highlights</h6>
+          <ng-container [ngSwitch]="true">
+            <div class="mb-2" *ngIf="getHighlights().topScorer as ts">
+              <div class="fw-semibold">Top scorer</div>
+              <div class="small text-muted">
+                {{ ts.name }} - {{ ts.runs }} ({{ ts.balls }})
+              </div>
+            </div>
+            <div class="mb-2" *ngIf="getHighlights().bestBowler as bb">
+              <div class="fw-semibold">Best bowler</div>
+              <div class="small text-muted">
+                {{ bb.name }} - {{ bb.wickets }}/{{ bb.runs }}
+              </div>
+            </div>
+            <p class="small text-muted mb-0">
+              Additional analytics like partnerships and fastest 50 can be derived from the same ball-by-ball data.
+            </p>
+          </ng-container>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

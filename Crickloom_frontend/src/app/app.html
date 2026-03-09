@@ -1,0 +1,45 @@
+<div class="min-vh-100 d-flex flex-column bg-dark text-light">
+  <nav class="navbar navbar-expand-lg navbar-dark bg-black shadow-sm">
+    <div class="container-fluid">
+      <a class="navbar-brand fw-bold" routerLink="/">
+        Crickloom
+      </a>
+      <button
+        class="navbar-toggler"
+        type="button"
+        data-bs-toggle="collapse"
+        data-bs-target="#navbarNav"
+        aria-controls="navbarNav"
+        aria-expanded="false"
+        aria-label="Toggle navigation"
+      >
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item">
+            <a routerLink="/" class="nav-link">Home</a>
+          </li>
+          <li class="nav-item">
+            <a routerLink="/leaderboards" class="nav-link">Leaderboards</a>
+          </li>
+          <li class="nav-item">
+            <a routerLink="/history" class="nav-link">Match History</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <main class="flex-grow-1">
+    <div class="container py-3 py-md-4">
+      <router-outlet></router-outlet>
+    </div>
+  </main>
+
+  <footer class="bg-black text-secondary small py-2">
+    <div class="container text-center">
+      Crickloom · Live cricket scoring &amp; stats
+    </div>
+  </footer>
+</div>
