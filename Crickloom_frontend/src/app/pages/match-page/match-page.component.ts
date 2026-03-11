@@ -86,10 +86,8 @@ export class MatchPageComponent implements OnInit, OnDestroy {
   }
 
   protected get isBowlerLockedForOver(): boolean {
-    const inn = this.currentInnings;
-    if (!inn) return false;
-    // Lock bowler after first legal ball of the over
-    return inn.ballsInOver !== 0;
+    // Lock bowler as soon as any delivery is recorded in the over
+    return this.getCurrentOverBalls().length > 0;
   }
 
   protected get lastOverBowlerId(): string | null {

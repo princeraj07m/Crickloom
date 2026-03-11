@@ -325,6 +325,18 @@ async function bootstrap() {
     const deliveryOverNumber = overs;
     const deliveryBallInOver = countsAsBall ? ballsInOver + 1 : ballsInOver; // wide/no-ball stays same ball count (e.g. 3.4)
 
+    // Enforce: if bowler has started this over (even with wide/no-ball), they must complete the over
+    const lastBallThisOver = await Ball.findOne({
+      match: match._id,
+      inningsIndex: match.currentInningsIndex,
+      overNumber: deliveryOverNumber
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+    if (lastBallThisOver && lastBallThisOver.bowler.toString() !== input.bowlerId) {
+      return res.status(400).json({ message: 'Bowler cannot be changed mid-over' });
+    }
+
     // Apply scoring rules
     let extras = 0;
     if (input.ballType === 'WIDE' || input.ballType === 'NO_BALL') {
