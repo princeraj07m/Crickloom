@@ -35,6 +35,32 @@
           </div>
         </div>
       </div>
+
+      <div class="row g-2 mt-3">
+        <div class="col-12 col-lg-8">
+          <div class="d-flex gap-3 flex-wrap">
+            <div *ngIf="strikerLine" class="small">
+              <span class="badge bg-success me-2">Striker</span>
+              <span class="fw-semibold">{{ strikerLine.name }}</span>
+              <span class="text-secondary"> {{ strikerLine.runs }} ({{ strikerLine.balls }})</span>
+            </div>
+            <div *ngIf="nonStrikerLine" class="small">
+              <span class="badge bg-secondary me-2">Non-striker</span>
+              <span class="fw-semibold">{{ nonStrikerLine.name }}</span>
+              <span class="text-secondary"> {{ nonStrikerLine.runs }} ({{ nonStrikerLine.balls }})</span>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-lg-4 text-lg-end">
+          <div *ngIf="currentBowlerLine" class="small">
+            <span class="badge bg-warning text-dark me-2">Bowler</span>
+            <span class="fw-semibold">{{ currentBowlerLine.name }}</span>
+            <span class="text-secondary">
+              {{ currentBowlerLine.overs }} ov · {{ currentBowlerLine.runs }} r · {{ currentBowlerLine.wickets }} w
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -79,7 +105,13 @@
                 <div *ngFor="let b of getCurrentOverBalls(); let i = index" class="list-group-item bg-dark text-light border-0 mb-1">
                   <div class="d-flex justify-content-between">
                     <div>Ball {{ i + 1 }}</div>
-                    <div>Runs: {{ b.runs }} | {{ b.ballType }}</div>
+                    <div class="text-end">
+                      <span>Runs: {{ b.runs }}</span>
+                      <span class="text-secondary"> | {{ b.ballType }}</span>
+                      <span *ngIf="b.wicketType" class="text-danger">
+                        | W ({{ b.wicketType }}) {{ b.playerOut?.name || '' }} b {{ b.bowler?.name || '' }}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>

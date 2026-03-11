@@ -121,6 +121,74 @@ export class MatchPageComponent implements OnInit, OnDestroy {
     return ballsForInnings.filter(b => b.overNumber === maxOver);
   }
 
+  private getBatterLine(playerId: string | null): { name: string; runs: number; balls: number } | null {
+    if (!playerId) return null;
+    const innIdx = this.matchSummary?.match?.currentInningsIndex ?? 0;
+    let runs = 0;
+    let balls = 0;
+    let name = '';
+    for (const b of this.balls) {
+      if (b.inningsIndex !== innIdx) continue;
+      if (b.ballType === 'WIDE' || b.ballType === 'NO_BALL') continue;
+      const striker = b.striker;
+      const sid = striker?._id || striker;
+      if (sid !== playerId) continue;
+      name = striker?.name || name;
+      balls += 1;
+      if (b.ballType === 'LEGAL') {
+        runs += b.runs;
+      }
+    }
+    // Find name if no balls faced yet
+    if (!name) {
+      const p = this.matchPlayers.find(mp => mp._id === playerId);
+      name = p?.name || 'Player';
+    }
+    return { name, runs, balls };
+  }
+
+  protected get strikerLine() {
+    const inn = this.currentInnings;
+    const id = inn?.striker?._id || inn?.striker || this.ballInput.strikerId || null;
+    return this.getBatterLine(id);
+  }
+
+  protected get nonStrikerLine() {
+    const inn = this.currentInnings;
+    const id = inn?.nonStriker?._id || inn?.nonStriker || this.ballInput.nonStrikerId || null;
+    return this.getBatterLine(id);
+  }
+
+  protected get currentBowlerLine(): { name: string; overs: string; runs: number; wickets: number } | null {
+    const innIdx = this.matchSummary?.match?.currentInningsIndex ?? 0;
+    // Use last ball bowler if exists, else current selection
+    const ballsForInn = this.balls.filter(b => b.inningsIndex === innIdx);
+    const last = ballsForInn.length ? ballsForInn[ballsForInn.length - 1] : null;
+    const bowlerId = (last?.bowler?._id || last?.bowler || this.ballInput.bowlerId || null) as string | null;
+    if (!bowlerId) return null;
+
+    let balls = 0;
+    let runs = 0;
+    let wickets = 0;
+    let name = '';
+    for (const b of ballsForInn) {
+      const bid = b.bowler?._id || b.bowler;
+      if (bid !== bowlerId) continue;
+      name = b.bowler?.name || name;
+      runs += b.runs + (b.extras || 0);
+      if (b.ballType === 'LEGAL' || b.ballType === 'BYE' || b.ballType === 'LEG_BYE') {
+        balls += 1;
+      }
+      if (b.wicketType) wickets += 1;
+    }
+    if (!name) {
+      const p = this.matchPlayers.find(mp => mp._id === bowlerId);
+      name = p?.name || 'Bowler';
+    }
+    const overs = `${Math.floor(balls / 6)}.${balls % 6}`;
+    return { name, overs, runs, wickets };
+  }
+
   getInningsBatting(inningsIndex: number): { playerId: string; name: string; runs: number; balls: number; fours: number; sixes: number }[] {
     const statsMap = new Map<string, { playerId: string; name: string; runs: number; balls: number; fours: number; sixes: number }>();
     for (const b of this.balls) {
@@ -270,28 +338,58 @@ export class MatchPageComponent implements OnInit, OnDestroy {
       // Get current innings
       const currentInnings = this.matchSummary.match.innings[this.matchSummary.match.currentInningsIndex];
       if (currentInnings) {
+        const outIds = new Set<string>(
+          (currentInnings.fallOfWickets || [])
+            .map((w: any) => (w.playerOut?._id || w.playerOut || null))
+            .filter((id: any): id is string => !!id)
+        );
+
         // Check if striker/non-striker are already set in the innings
         const hasStriker = currentInnings.striker;
         const hasNonStriker = currentInnings.nonStriker;
 
-        if (hasStriker && hasNonStriker) {
+        const strikerId = hasStriker?._id || hasStriker;
+        const nonStrikerId = hasNonStriker?._id || hasNonStriker;
+
+        // If stored striker/non-striker are out (stale), force selection
+        const strikerValid = strikerId && !outIds.has(strikerId);
+        const nonStrikerValid = nonStrikerId && !outIds.has(nonStrikerId);
+
+        if (strikerValid && nonStrikerValid) {
           // Innings already has players set, use them
-          this.ballInput.strikerId = currentInnings.striker._id || currentInnings.striker;
-          this.ballInput.nonStrikerId = currentInnings.nonStriker._id || currentInnings.nonStriker;
+          this.ballInput.strikerId = strikerId;
+          this.ballInput.nonStrikerId = nonStrikerId;
           this.showPlayerSelection = false; // Hide selection fields
         } else {
           // No players set yet, show selection fields for initial setup
           this.showPlayerSelection = true;
           // Pre-select first two players from batting team as defaults
           const battingTeamId = currentInnings.battingTeam._id || currentInnings.battingTeam;
-          const battingTeamPlayers = this.matchPlayers.filter(p =>
-            p.teams && p.teams.some((t: any) => (t._id || t) === battingTeamId)
-          );
+          const battingTeamPlayers = this.matchPlayers
+            .filter(p => p.teams && p.teams.some((t: any) => (t._id || t) === battingTeamId))
+            .filter(p => !outIds.has(p._id));
+
+          // If one batsman is still known, keep them; only pick a replacement for the missing side.
+          if (strikerValid) {
+            this.ballInput.strikerId = strikerId;
+          }
+          if (nonStrikerValid) {
+            this.ballInput.nonStrikerId = nonStrikerId;
+          }
+
           if (battingTeamPlayers.length > 0) {
-            this.ballInput.strikerId = battingTeamPlayers[0]._id;
+            if (!this.ballInput.strikerId) {
+              this.ballInput.strikerId = battingTeamPlayers[0]._id;
+            }
           }
           if (battingTeamPlayers.length > 1) {
-            this.ballInput.nonStrikerId = battingTeamPlayers[1]._id;
+            if (!this.ballInput.nonStrikerId) {
+              const firstId = this.ballInput.strikerId;
+              const candidate = battingTeamPlayers.find(p => p._id !== firstId);
+              if (candidate) {
+                this.ballInput.nonStrikerId = candidate._id;
+              }
+            }
           }
         }
 
@@ -379,11 +477,13 @@ export class MatchPageComponent implements OnInit, OnDestroy {
           this.ballInput.nonStrikerId = res.next.nonStrikerId ?? this.ballInput.nonStrikerId;
           this.ballInput.bowlerId = res.next.bowlerId ?? this.ballInput.bowlerId;
         }
+        // If backend cleared a batsman slot (wicket), show selection to choose next batsman
+        this.showPlayerSelection = !this.ballInput.strikerId || !this.ballInput.nonStrikerId;
         this.actionMessage = 'Ball recorded';
         this.loadData();
       },
-      error: () => {
-        this.actionError = 'Failed to submit ball';
+      error: (err: any) => {
+        this.actionError = err?.error?.message || 'Failed to submit ball';
       }
     });
   }

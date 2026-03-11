@@ -392,9 +392,19 @@ async function bootstrap() {
     innings.overs = overs;
     innings.ballsInOver = ballsInOver;
 
-    // Track current striker/non-striker in innings when both are known
-    innings.striker = nextStrikerId ? new mongoose.Types.ObjectId(nextStrikerId) : innings.striker;
-    innings.nonStriker = nextNonStrikerId ? new mongoose.Types.ObjectId(nextNonStrikerId) : innings.nonStriker;
+    // Track current striker/non-striker in innings.
+    // If a wicket fell and the outgoing batsman was striker/non-striker, clear that slot to force selecting a new batsman.
+    if (wicketFell && input.playerOutId === input.strikerId) {
+      innings.striker = undefined;
+    } else if (nextStrikerId) {
+      innings.striker = new mongoose.Types.ObjectId(nextStrikerId);
+    }
+
+    if (wicketFell && input.playerOutId === input.nonStrikerId) {
+      innings.nonStriker = undefined;
+    } else if (nextNonStrikerId) {
+      innings.nonStriker = new mongoose.Types.ObjectId(nextNonStrikerId);
+    }
 
     // Persist ball
     // only include playerOut if a non-empty id was provided
