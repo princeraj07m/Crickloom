@@ -81,5 +81,25 @@ export class ApiService {
   getCompletedMatches(): Observable<any> {
     return this.http.get(`${API_BASE}/matches/history/completed`);
   }
+
+  deleteMatch(matchId: string, password: string): Observable<any> {
+    return this.http.delete(`${API_BASE}/matches/${matchId}`, {
+      headers: {
+        'x-global-password': password
+      }
+    });
+  }
+
+  createMatch(matchData: any, password: string): Observable<any> {
+    return this.http.post(`${API_BASE}/matches`, matchData, {
+      headers: {
+        'x-global-password': password
+      }
+    });
+  }
+
+  getTournamentTeams(tournamentId: string): Observable<any> {
+    return this.http.get(`${API_BASE}/tournaments/${tournamentId}/teams`);
+  }
 }
 

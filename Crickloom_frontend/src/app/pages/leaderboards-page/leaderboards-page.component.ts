@@ -12,7 +12,7 @@ export class LeaderboardsPageComponent implements OnInit {
   private readonly api = inject(ApiService);
 
   protected format = signal<'T20' | 'ODI' | 'TEST'>('T20');
-  protected data: any;
+  protected data = signal<any>(null);
 
   ngOnInit(): void {
     this.load();
@@ -24,7 +24,7 @@ export class LeaderboardsPageComponent implements OnInit {
   }
 
   private load(): void {
-    this.api.getLeaderboards(this.format()).subscribe(d => (this.data = d));
+    this.api.getLeaderboards(this.format()).subscribe(d => this.data.set(d));
   }
 }
 

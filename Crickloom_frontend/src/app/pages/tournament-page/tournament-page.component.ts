@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ApiService } from '../../services/api.service';
@@ -12,6 +12,7 @@ import { ApiService } from '../../services/api.service';
 export class TournamentPageComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly api = inject(ApiService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   tournament: any;
   matches: any[] = [];
@@ -20,9 +21,11 @@ export class TournamentPageComponent implements OnInit {
     const id = this.route.snapshot.paramMap.get('id')!;
     this.api.getTournaments().subscribe((tournaments: any) => {
       this.tournament = (tournaments as any[]).find(t => t._id === id);
+      this.cdr.detectChanges();
     });
     this.api.getMatches().subscribe((matches: any) => {
       this.matches = (matches as any[]).filter(m => m.tournament._id === id);
+      this.cdr.detectChanges();
     });
   }
 }

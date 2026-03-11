@@ -70,10 +70,13 @@
         <div class="col-12 col-lg-7">
           <div class="card bg-secondary-subtle border-0 shadow-sm h-100">
             <div class="card-body">
-              <h6 class="card-title mb-3">Ball-by-ball</h6>
-              <div class="small text-muted" *ngIf="balls.length === 0">No balls yet.</div>
+              <h6 class="card-title mb-1">Current over</h6>
+              <div class="small text-secondary mb-2" *ngIf="getCurrentOverBalls().length">
+                Over {{ getCurrentOverBalls()[0].overNumber }}
+              </div>
+              <div class="small text-muted" *ngIf="getCurrentOverBalls().length === 0">No balls yet.</div>
               <div class="list-group small" style="max-height: 320px; overflow-y: auto">
-                <div *ngFor="let b of balls; let i = index" class="list-group-item bg-dark text-light border-0 mb-1">
+                <div *ngFor="let b of getCurrentOverBalls(); let i = index" class="list-group-item bg-dark text-light border-0 mb-1">
                   <div class="d-flex justify-content-between">
                     <div>Ball {{ i + 1 }}</div>
                     <div>Runs: {{ b.runs }} | {{ b.ballType }}</div>
@@ -86,7 +89,12 @@
         <div class="col-12 col-lg-5">
           <div class="card bg-secondary-subtle border-0 shadow-sm h-100">
             <div class="card-body">
-              <h6 class="card-title mb-3">Scoring (password protected)</h6>
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="card-title mb-0">Live scoring</h6>
+                <button *ngIf="auth.isScorer" type="button" class="btn btn-sm btn-outline-light" (click)="logoutScorer()">
+                  Logout
+                </button>
+              </div>
 
               <div *ngIf="!auth.isScorer">
                 <label class="form-label small">Enter scorer password</label>
@@ -103,29 +111,32 @@
               </div>
 
               <form *ngIf="auth.isScorer" (ngSubmit)="submitBall()" class="small">
-                <div class="mb-2">
+                <!-- Player selection only shown when wicket occurs -->
+                <div *ngIf="showPlayerSelection" class="mb-2">
                   <label class="form-label">Striker</label>
                   <select
                     class="form-select form-select-sm"
                     [(ngModel)]="ballInput.strikerId"
                     name="strikerId"
+                    required
                   >
                     <option [ngValue]="''">Select</option>
-                    <option *ngFor="let p of matchPlayers" [ngValue]="p._id">
+                    <option *ngFor="let p of battingPlayers" [ngValue]="p._id">
                       {{ p.name }}
                     </option>
                   </select>
                 </div>
 
-                <div class="mb-2">
+                <div *ngIf="showPlayerSelection" class="mb-2">
                   <label class="form-label">Non-striker</label>
                   <select
                     class="form-select form-select-sm"
                     [(ngModel)]="ballInput.nonStrikerId"
                     name="nonStrikerId"
+                    required
                   >
                     <option [ngValue]="''">Select</option>
-                    <option *ngFor="let p of matchPlayers" [ngValue]="p._id">
+                    <option *ngFor="let p of battingPlayers" [ngValue]="p._id">
                       {{ p.name }}
                     </option>
                   </select>
@@ -137,12 +148,17 @@
                     class="form-select form-select-sm"
                     [(ngModel)]="ballInput.bowlerId"
                     name="bowlerId"
+                    required
+                    [disabled]="isBowlerLockedForOver"
                   >
                     <option [ngValue]="''">Select</option>
-                    <option *ngFor="let p of matchPlayers" [ngValue]="p._id">
+                    <option *ngFor="let p of bowlingPlayers" [ngValue]="p._id">
                       {{ p.name }}
                     </option>
                   </select>
+                  <div class="form-text text-warning small" *ngIf="isBowlerLockedForOver">
+                    Bowler locked for this over (change after 6 legal balls).
+                  </div>
                 </div>
                 <div class="mb-2">
                   <label class="form-label">Runs</label>
@@ -169,7 +185,7 @@
 
                 <div class="mb-2">
                   <label class="form-label">Wicket</label>
-                  <select class="form-select form-select-sm" [(ngModel)]="ballInput.wicketType" name="wicketType">
+                  <select class="form-select form-select-sm" [(ngModel)]="ballInput.wicketType" name="wicketType" (change)="onWicketTypeChange()">
                     <option value="">None</option>
                     <option value="Bowled">Bowled</option>
                     <option value="Caught">Caught</option>
@@ -188,7 +204,7 @@
                     name="playerOutId"
                   >
                     <option [ngValue]="''">Select</option>
-                    <option *ngFor="let p of matchPlayers" [ngValue]="p._id">
+                    <option *ngFor="let p of battingPlayers" [ngValue]="p._id">
                       {{ p.name }}
                     </option>
                   </select>

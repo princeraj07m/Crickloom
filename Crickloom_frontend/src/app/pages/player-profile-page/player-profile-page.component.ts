@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { ApiService } from '../../services/api.service';
@@ -12,6 +12,7 @@ import { ApiService } from '../../services/api.service';
 export class PlayerProfilePageComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly api = inject(ApiService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   player: any;
   stats: any[] = [];
@@ -21,6 +22,7 @@ export class PlayerProfilePageComponent implements OnInit {
     this.api.getPlayer(id).subscribe((res: any) => {
       this.player = res.player;
       this.stats = res.stats;
+      this.cdr.detectChanges();
     });
   }
 }

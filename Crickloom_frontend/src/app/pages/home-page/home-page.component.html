@@ -1,8 +1,13 @@
 <div class="row g-3">
+  <div class="col-12" *ngIf="error">
+    <div class="alert alert-danger" role="alert">{{ error }}</div>
+  </div>
+
   <div class="col-12 col-lg-4">
     <div class="card bg-dark border-0 shadow-sm h-100">
       <div class="card-body">
         <h5 class="card-title mb-3 text-uppercase small text-secondary">Tournament</h5>
+        <div *ngIf="loading" class="text-muted">Loading tournaments...</div>
         <div *ngFor="let t of tournaments" class="mb-3">
           <a [routerLink]="['/tournament', t._id]" class="text-decoration-none text-light">
             <div class="d-flex flex-column">
@@ -11,7 +16,7 @@
             </div>
           </a>
         </div>
-        <p *ngIf="tournaments.length === 0" class="text-muted mb-0">No tournaments yet.</p>
+        <p *ngIf="!loading && tournaments.length === 0" class="text-muted mb-0">No tournaments yet.</p>
       </div>
     </div>
   </div>
@@ -19,7 +24,15 @@
   <div class="col-12 col-lg-8">
     <div class="card bg-dark border-0 shadow-sm h-100">
       <div class="card-body">
-        <h5 class="card-title mb-3 text-uppercase small text-secondary">Matches</h5>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="card-title text-uppercase small text-secondary mb-0">Matches</h5>
+          <div class="d-flex gap-2 align-items-center">
+            <span class="badge bg-secondary" *ngIf="!loading">Total: {{ matches.length }}</span>
+            <button class="btn btn-sm btn-outline-primary" (click)="showCreateMatchModal = true" *ngIf="!loading">
+              <i class="fas fa-plus me-1"></i>Add Match
+            </button>
+          </div>
+        </div>
         <div *ngIf="loading" class="text-muted">Loading matches...</div>
         <div *ngIf="!loading && matches.length === 0" class="text-muted">No matches scheduled.</div>
         <div class="row g-3">
@@ -34,26 +47,107 @@
                     </span>
                   </div>
                   <div class="fw-semibold mb-1">
-                    {{ m.teamA.name }} vs {{ m.teamB.name }}
+                    {{ m.teamA?.name || m.teamA }} vs {{ m.teamB?.name || m.teamB }}
                   </div>
                   <div class="small text-secondary mb-1">{{ m.title }}</div>
                   <div class="small text-secondary">
                     Overs:
-                    <ng-container *ngIf="m.oversLimit; else unlimited">
+                    <ng-container *ngIf="m.oversLimit !== undefined && m.oversLimit !== null; else unlimited">
                       {{ m.oversLimit }}
                     </ng-container>
                     <ng-template #unlimited>Unlimited</ng-template>
                   </div>
-                  <button class="btn btn-sm btn-outline-light mt-2" type="button">
-                    View match
-                  </button>
+                  <div class="d-flex gap-2 mt-2">
+                    <button class="btn btn-sm btn-outline-light" type="button">
+                      View match
+                    </button>
+                    <button
+                      class="btn btn-sm btn-outline-danger ms-auto"
+                      type="button"
+                      (click)="deleteMatch(m, $event)"
+                      title="Delete match (password required)"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               </div>
             </a>
           </div>
-        </div>
+        </div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Create Match Modal -->
+<div class="modal fade" [class.show]="showCreateMatchModal" [style.display]="showCreateMatchModal ? 'block' : 'none'" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content bg-dark text-light">
+      <div class="modal-header">
+        <h5 class="modal-title">Create New Match</h5>
+        <button type="button" class="btn-close btn-close-white" (click)="showCreateMatchModal = false"></button>
+      </div>
+      <div class="modal-body">
+        <form (ngSubmit)="createMatch()" #matchForm="ngForm">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Tournament</label>
+              <select class="form-select" [(ngModel)]="newMatch.tournamentId" name="tournamentId" required (change)="onTournamentChange()">
+                <option [ngValue]="''">Select Tournament</option>
+                <option *ngFor="let t of tournaments" [ngValue]="t._id">{{ t.name }}</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Format</label>
+              <select class="form-select" [(ngModel)]="newMatch.format" name="format" required>
+                <option [ngValue]="''">Select Format</option>
+                <option value="T20">T20</option>
+                <option value="ODI">ODI</option>
+                <option value="TEST">Test</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Team A</label>
+              <select class="form-select" [(ngModel)]="newMatch.teamAId" name="teamAId" required>
+                <option [ngValue]="''">Select Team A</option>
+                <option *ngFor="let team of availableTeams" [ngValue]="team._id">{{ team.name }}</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Team B</label>
+              <select class="form-select" [(ngModel)]="newMatch.teamBId" name="teamBId" required>
+                <option [ngValue]="''">Select Team B</option>
+                <option *ngFor="let team of availableTeams" [ngValue]="team._id">{{ team.name }}</option>
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Match Title</label>
+              <input type="text" class="form-control" [(ngModel)]="newMatch.title" name="title" 
+                     placeholder="e.g., T20: Team A vs Team B" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Overs Limit</label>
+              <input type="number" class="form-control" [(ngModel)]="newMatch.oversLimit" name="oversLimit" 
+                     [placeholder]="newMatch.format === 'T20' ? '20' : newMatch.format === 'ODI' ? '50' : 'unlimited'">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Scorer Password</label>
+              <input type="password" class="form-control" [(ngModel)]="scorerPassword" name="password" required>
+            </div>
+          </div>
+          <div class="mt-3">
+            <button type="submit" class="btn btn-primary" [disabled]="!matchForm.form.valid || creatingMatch">
+              <span *ngIf="creatingMatch" class="spinner-border spinner-border-sm me-2"></span>
+              Create Match
+            </button>
+            <button type="button" class="btn btn-secondary ms-2" (click)="showCreateMatchModal = false">Cancel</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>
 </div>
+
+<!-- Modal Backdrop -->
+<div class="modal-backdrop fade show" *ngIf="showCreateMatchModal"></div>
 

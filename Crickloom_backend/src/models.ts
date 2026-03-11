@@ -65,6 +65,8 @@ export interface IInnings {
   overs: number;
   ballsInOver: number;
   status: InningStatus;
+  striker?: Types.ObjectId;
+  nonStriker?: Types.ObjectId;
   fallOfWickets: {
     score: number;
     wicket: number;
@@ -97,6 +99,8 @@ const InningsSchema = new Schema<IInnings>(
     overs: { type: Number, default: 0 },
     ballsInOver: { type: Number, default: 0 },
     status: { type: String, enum: ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED'], default: 'NOT_STARTED' },
+    striker: { type: Schema.Types.ObjectId, ref: 'Player' },
+    nonStriker: { type: Schema.Types.ObjectId, ref: 'Player' },
     fallOfWickets: [
       {
         score: Number,

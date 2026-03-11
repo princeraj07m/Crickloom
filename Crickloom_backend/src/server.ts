@@ -22,6 +22,16 @@ const GLOBAL_PASSWORD = process.env.GLOBAL_PASSWORD || 'crickloom';
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/crickloom';
 const PORT = Number(process.env.PORT) || 4000;
 
+function computeRunRate(runs: number, overs: number, ballsInOver: number): number {
+  const totalBalls = overs * 6 + ballsInOver;
+  if (totalBalls === 0) return 0;
+  return Number(((runs / totalBalls) * 6).toFixed(2));
+}
+
+function oversNumberToString(overs: number, ballsInOver: number): string {
+  return `${overs}.${ballsInOver}`;
+}
+
 async function bootstrap() {
   await mongoose.connect(MONGO_URI);
 
@@ -173,6 +183,71 @@ async function bootstrap() {
     res.json(match);
   });
 
+  app.get('/api/tournaments/:id/teams', async (req, res) => {
+    const teams = await Team.find({ tournament: req.params.id });
+    res.json(teams);
+  });
+
+  app.post('/api/matches', requirePassword, async (req, res) => {
+    const { tournamentId, format, teamAId, teamBId, title, oversLimit } = req.body as {
+      tournamentId: string;
+      format: MatchFormat;
+      teamAId: string;
+      teamBId: string;
+      title: string;
+      oversLimit?: number;
+    };
+
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ message: 'Tournament not found' });
+    }
+
+    const teamA = await Team.findById(teamAId);
+    const teamB = await Team.findById(teamBId);
+    if (!teamA || !teamB) {
+      return res.status(404).json({ message: 'Team not found' });
+    }
+
+    const match = await Match.create({
+      tournament: tournament._id,
+      format,
+      teamA: teamA._id,
+      teamB: teamB._id,
+      title,
+      oversLimit,
+      currentInningsIndex: 0,
+      innings: [
+        {
+          battingTeam: teamA._id,
+          bowlingTeam: teamB._id,
+          runs: 0,
+          wickets: 0,
+          overs: 0,
+          ballsInOver: 0,
+          status: 'IN_PROGRESS',
+          fallOfWickets: []
+        },
+        {
+          battingTeam: teamB._id,
+          bowlingTeam: teamA._id,
+          runs: 0,
+          wickets: 0,
+          overs: 0,
+          ballsInOver: 0,
+          status: 'NOT_STARTED',
+          fallOfWickets: []
+        }
+      ],
+      isCompleted: false,
+      winnerEditable: true
+    });
+
+    // Populate and return the created match
+    const populatedMatch = await Match.findById(match._id).populate('teamA teamB tournament');
+    res.json(populatedMatch);
+  });
+
   app.post('/api/login', (req, res) => {
     const { password } = req.body as { password: string };
     if (password === GLOBAL_PASSWORD) {
@@ -201,46 +276,114 @@ async function bootstrap() {
     }
 
     const input = req.body as BallInput;
+    // Validate required fields
+    if (!input.strikerId || !input.nonStrikerId || !input.bowlerId) {
+      return res.status(400).json({ message: 'Striker, non-striker, and bowler are required' });
+    }
+    if (input.strikerId === input.nonStrikerId) {
+      return res.status(400).json({ message: 'Striker and non-striker must be different players' });
+    }
+    if (input.wicketType && input.playerOutId) {
+      if (input.playerOutId !== input.strikerId && input.playerOutId !== input.nonStrikerId) {
+        return res.status(400).json({ message: 'Player out must be one of the current batsmen' });
+      }
+    }
     const innings = match.innings[match.currentInningsIndex];
 
     if (!innings) {
       return res.status(400).json({ message: 'Invalid innings' });
     }
 
+    // Disallow already dismissed batsmen from batting again in same innings
+    const outIds = new Set(
+      (innings.fallOfWickets || [])
+        .map(w => (w.playerOut ? w.playerOut.toString() : null))
+        .filter((id): id is string => !!id)
+    );
+    if (outIds.has(input.strikerId) || outIds.has(input.nonStrikerId)) {
+      return res
+        .status(400)
+        .json({ message: 'A dismissed batsman cannot bat again in the same innings' });
+    }
+
     let { overs, ballsInOver, runs, wickets } = innings;
 
-    let totalRunsThisBall = input.runs;
-    let extras = 0;
+    const countsAsBall = input.ballType === 'LEGAL' || input.ballType === 'BYE' || input.ballType === 'LEG_BYE';
 
+    // Enforce: same bowler cannot bowl consecutive overs
+    if (countsAsBall && innings.ballsInOver === 0) {
+      // New over starting (no legal balls yet this over)
+      const lastBall = await Ball.findOne({ match: match._id, inningsIndex: match.currentInningsIndex })
+        .sort({ overNumber: -1, ballInOver: -1 })
+        .lean();
+      if (lastBall && lastBall.bowler.toString() === input.bowlerId) {
+        return res.status(400).json({ message: 'Same bowler cannot bowl consecutive overs' });
+      }
+    }
+
+    // Record delivery position BEFORE we mutate innings counts
+    const deliveryOverNumber = overs;
+    const deliveryBallInOver = countsAsBall ? ballsInOver + 1 : ballsInOver; // wide/no-ball stays same ball count (e.g. 3.4)
+
+    // Apply scoring rules
+    let extras = 0;
     if (input.ballType === 'WIDE' || input.ballType === 'NO_BALL') {
-      // 0 runs but does not count as ball, extras not added to runs
-      totalRunsThisBall = 0;
+      // special tournament rule: 0 runs, does not count as ball
     } else if (input.ballType === 'BYE' || input.ballType === 'LEG_BYE') {
       extras = input.runs;
       runs += input.runs;
     } else {
-      // normal legal ball with runs
+      // legal ball runs to team total
       runs += input.runs;
     }
 
-    const countsAsBall = input.ballType === 'LEGAL' || input.ballType === 'BYE' || input.ballType === 'LEG_BYE';
+    const wicketFell = Boolean(input.wicketType && input.playerOutId);
 
+    // Update innings counts for legal/bye/leg-bye
     if (countsAsBall) {
       ballsInOver += 1;
       if (ballsInOver === 6) {
         overs += 1;
         ballsInOver = 0;
       }
+    }
 
-      if (input.wicketType && input.playerOutId) {
-        wickets += 1;
-        innings.fallOfWickets.push({
-          score: runs,
-          wicket: wickets,
-          over: oversNumberToString(overs, ballsInOver),
-          playerOut: new mongoose.Types.ObjectId(input.playerOutId),
-          dismissalType: input.wicketType
-        });
+    // Fall of wicket uses delivery over.ball (not the post-mutation counter)
+    if (countsAsBall && wicketFell) {
+      wickets += 1;
+      innings.fallOfWickets.push({
+        score: runs,
+        wicket: wickets,
+        over: oversNumberToString(deliveryOverNumber, deliveryBallInOver),
+        playerOut: new mongoose.Types.ObjectId(input.playerOutId!),
+        dismissalType: input.wicketType!
+      });
+    }
+
+    // Compute next striker/non-striker (basic cricket logic)
+    let nextStrikerId: string | '' = input.strikerId;
+    let nextNonStrikerId: string | '' = input.nonStrikerId;
+
+    if (countsAsBall) {
+      // If wicket fell and striker got out, require scorer to pick new striker
+      if (wicketFell && input.playerOutId === input.strikerId) {
+        nextStrikerId = '';
+      }
+      // If non-striker got out, require scorer to pick new non-striker
+      if (wicketFell && input.playerOutId === input.nonStrikerId) {
+        nextNonStrikerId = '';
+      }
+
+      // Strike rotation for runs (bye/leg-bye count for rotation)
+      const isOdd = input.runs % 2 === 1;
+      if (isOdd && nextStrikerId && nextNonStrikerId) {
+        [nextStrikerId, nextNonStrikerId] = [nextNonStrikerId, nextStrikerId];
+      }
+
+      // End of over rotation (only after a counted ball)
+      const overJustEnded = ballsInOver === 0;
+      if (overJustEnded && nextStrikerId && nextNonStrikerId) {
+        [nextStrikerId, nextNonStrikerId] = [nextNonStrikerId, nextStrikerId];
       }
     }
 
@@ -249,20 +392,25 @@ async function bootstrap() {
     innings.overs = overs;
     innings.ballsInOver = ballsInOver;
 
+    // Track current striker/non-striker in innings when both are known
+    innings.striker = nextStrikerId ? new mongoose.Types.ObjectId(nextStrikerId) : innings.striker;
+    innings.nonStriker = nextNonStrikerId ? new mongoose.Types.ObjectId(nextNonStrikerId) : innings.nonStriker;
+
     // Persist ball
+    // only include playerOut if a non-empty id was provided
     const ballDoc = await Ball.create({
       match: match._id,
       inningsIndex: match.currentInningsIndex,
-      overNumber: overs,
-      ballInOver: ballsInOver,
-      striker: input.strikerId,
-      nonStriker: input.nonStrikerId,
-      bowler: input.bowlerId,
+      overNumber: deliveryOverNumber,
+      ballInOver: deliveryBallInOver,
+      striker: new mongoose.Types.ObjectId(input.strikerId),
+      nonStriker: new mongoose.Types.ObjectId(input.nonStrikerId),
+      bowler: new mongoose.Types.ObjectId(input.bowlerId),
       runs: input.runs,
       extras,
       ballType: input.ballType,
       wicketType: input.wicketType,
-      playerOut: input.playerOutId
+      ...(input.playerOutId ? { playerOut: new mongoose.Types.ObjectId(input.playerOutId) } : {})
     });
 
     // Update player stats (simplified: assumes all runs go to striker on legal ball)
@@ -325,16 +473,29 @@ async function bootstrap() {
       }
     }
 
-    const populatedMatch = await Match.findById(match._id).populate('teamA teamB tournament innings.battingTeam innings.bowlingTeam');
+    const populatedMatch = await Match.findById(match._id).populate(
+      'teamA teamB tournament innings.battingTeam innings.bowlingTeam innings.striker innings.nonStriker'
+    );
 
+    const overJustEndedForNext = countsAsBall && ballsInOver === 0;
     io.to(`match:${match._id.toString()}`).emit('match:update', {
       match: populatedMatch,
-      lastBall: ballDoc
+      lastBall: ballDoc,
+      next: {
+        strikerId: nextStrikerId,
+        nonStrikerId: nextNonStrikerId,
+        bowlerId: overJustEndedForNext ? '' : input.bowlerId
+      }
     });
 
     res.json({
       match: populatedMatch,
-      ball: ballDoc
+      ball: ballDoc,
+      next: {
+        strikerId: nextStrikerId,
+        nonStrikerId: nextNonStrikerId,
+        bowlerId: overJustEndedForNext ? '' : input.bowlerId
+      }
     });
   });
 
@@ -474,6 +635,19 @@ async function bootstrap() {
     res.json(populatedMatch);
   });
 
+  app.delete('/api/matches/:id', requirePassword, async (req, res) => {
+    const match = await Match.findById(req.params.id);
+    if (!match) {
+      return res.status(404).json({ message: 'Match not found' });
+    }
+
+    await Ball.deleteMany({ match: match._id });
+    await Award.deleteMany({ match: match._id });
+    await Match.deleteOne({ _id: match._id });
+
+    res.json({ success: true });
+  });
+
   app.post('/api/matches/:id/winner', requirePassword, async (req, res) => {
     const match = await Match.findById(req.params.id);
     if (!match) {
@@ -539,7 +713,7 @@ async function bootstrap() {
 
   app.get('/api/matches/:id/summary', async (req, res) => {
     const match = await Match.findById(req.params.id)
-      .populate('teamA teamB tournament innings.battingTeam innings.bowlingTeam winnerTeam')
+      .populate('teamA teamB tournament innings.battingTeam innings.bowlingTeam innings.striker innings.nonStriker winnerTeam')
       .lean();
     if (!match) {
       return res.status(404).json({ message: 'Match not found' });
